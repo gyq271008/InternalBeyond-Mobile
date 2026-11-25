@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="./reader.webmanifest">
-<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-reader-192.png">
 <title>聊天记录阅读器</title>
 <style>
   :root{
@@ -16,7 +16,7 @@
     --narr:#e6e3ea; --dim:#8d8794; --accent:#e08a5a;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%}
+  html,body{height:100%;overflow:hidden}
   body{
     margin:0;background:#121014;color:var(--narr);
     font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC","Source Han Sans SC",system-ui,sans-serif;
@@ -27,7 +27,8 @@
     background:#121014 no-repeat center top;background-size:cover;z-index:0;
     transform:translateZ(0);backface-visibility:hidden}
   #bg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,9,12,.42),rgba(10,9,12,.22) 35%,rgba(10,9,12,.55))}
-  #wrap{position:relative;z-index:1;min-height:100%;display:flex;flex-direction:column}
+  #wrap{position:fixed;inset:0;z-index:1;overflow-y:auto;overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
 
   header{position:sticky;top:0;z-index:5;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
     background:linear-gradient(180deg,rgba(14,12,16,.94),rgba(14,12,16,.62));
@@ -844,7 +845,7 @@
     fillProfileSelects();
     setBackground(p.bg || DEFAULT_BG);
     var cs = $('chkSplit'); if (cs) cs.checked = !!p.splitPara;
-    window.scrollTo({ top:0 });
+    scroller.scrollTop = 0;
   }
 
   function newProfile(name){
@@ -907,7 +908,7 @@
     cur.ts = Date.now();
     saveProfiles();
     render(); renderVoiceRows();
-    window.scrollTo({ top: 0 });
+    scroller.scrollTop = 0;
   }
 
   function askDelete(idx){
@@ -934,11 +935,12 @@
 
   /* ========== 拖动条 ========== */
   var scrub = $('scrub'), thumb = $('thumb'), tip = $('tip');
-  function maxScroll(){ return Math.max(0, document.documentElement.scrollHeight - window.innerHeight); }
+  var scroller = document.getElementById('wrap');
+  function maxScroll(){ return Math.max(0, scroller.scrollHeight - scroller.clientHeight); }
   function syncThumb(){
     if (!thumb) return;
     var h = scrub.clientHeight - thumb.offsetHeight, max = maxScroll();
-    var r = max > 0 ? Math.min(1, Math.max(0, (window.scrollY || 0) / max)) : 0;
+    var r = max > 0 ? Math.min(1, Math.max(0, scroller.scrollTop / max)) : 0;
     thumb.style.transform = 'translateY(' + (r * Math.max(0,h)) + 'px)';
   }
   function ratioFromY(cy){
@@ -948,7 +950,7 @@
   }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function applyRatio(r, showTip){
-    window.scrollTo(0, Math.round(r * maxScroll()));
+    scroller.scrollTop = Math.round(r * maxScroll());
     if (showTip){
       var n = items.length, idx = Math.min(n-1, Math.max(0, Math.round(r*(n-1))));
       var it = items[idx] || {};
@@ -970,7 +972,7 @@
     setTimeout(function(){ tip.classList.remove('on'); }, 450); }
   scrub.addEventListener('pointerup', endDrag);
   scrub.addEventListener('pointercancel', endDrag);
-  window.addEventListener('scroll', syncThumb, { passive:true });
+  scroller.addEventListener('scroll', syncThumb, { passive:true });
   window.addEventListener('resize', syncThumb);
 
   /* ========== 交互 ========== */
@@ -1084,12 +1086,12 @@
     TTS.fillVoices(); renderVoiceRows();
   };
   $('mask').onclick = function(){ $('panel').classList.remove('on'); $('mask').classList.remove('on'); };
-  $('btnTop').onclick = function(){ window.scrollTo({ top:0, behavior:'smooth' }); };
+  $('btnTop').onclick = function(){ scroller.scrollTo({ top:0, behavior:'smooth' }); };
 
   $('chev').onclick = function(){ var h = $('hdr'); h.classList.toggle('min'); if (!h.classList.contains('min')) h.classList.remove('hid'); };
-  var lastY = window.scrollY || 0;
-  window.addEventListener('scroll', function(){
-    var y = window.scrollY || 0, h = $('hdr');
+  var lastY = scroller.scrollTop;
+  scroller.addEventListener('scroll', function(){
+    var y = scroller.scrollTop, h = $('hdr');
     if (y > lastY + 4 && y > 120) h.classList.add('hid');
     else if (y < lastY - 4) h.classList.remove('hid');
     lastY = y;
