@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#121014">
+<title>TXT 整理器</title>
+<style>
+  :root{--bg:#121014;--card:rgba(255,255,255,.055);--line:rgba(255,255,255,.10);--dim:#8d8794;--tx:#e8e3ee;--accent:#e08a5a}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.7;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC",system-ui,sans-serif;padding-bottom:40px}
+  header{position:sticky;top:0;z-index:5;background:rgba(14,12,16,.92);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line);padding:12px 14px calc(10px + env(safe-area-inset-top)/3)}
+  h1{margin:0;font-size:16px;font-weight:600;letter-spacing:.04em}
+  .sub{margin-top:4px;font-size:12px;color:var(--dim)}
+  main{padding:14px;max-width:720px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:14px}
+  textarea{width:100%;min-height:120px;background:rgba(0,0,0,.25);border:1px solid var(--line);
+    color:var(--tx);border-radius:10px;padding:10px;font-size:14px;line-height:1.65;font-family:inherit;resize:vertical}
+  .names{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px}
+  .nb{flex:1 1 30%;min-width:88px;padding:11px 8px;border-radius:11px;border:1px solid var(--line);
+    background:rgba(255,255,255,.06);color:var(--tx);font-size:14px}
+  .nb.me{background:rgba(120,170,220,.16);border-color:rgba(150,190,235,.28)}
+  .nb.ghost{background:transparent;color:var(--dim);font-size:13px}
+  .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .btn{flex:1 1 auto;padding:10px 12px;border-radius:11px;border:1px solid var(--line);
+    background:rgba(255,255,255,.07);color:var(--tx);font-size:14px}
+  .btn.primary{background:linear-gradient(180deg,rgba(224,138,90,.95),rgba(178,92,56,.95));border-color:transparent;color:#fff}
+  h2{font-size:13px;color:var(--dim);font-weight:500;letter-spacing:.08em;margin:18px 0 8px}
+  .item{display:flex;gap:9px;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);
+    transition:background .15s}
+  .item.drag{background:rgba(224,138,90,.12);border-radius:10px;outline:1px solid rgba(224,138,90,.4)}
+  .item.flash{animation:fl .5s}
+  @keyframes fl{0%{background:rgba(224,138,90,.22)}100%{background:transparent}}
+  .item:last-child{border-bottom:none}
+  .who{flex:0 0 auto;font-size:12px;color:#1b1a1f;background:#e8dfd3;border-radius:999px;padding:2px 9px;margin-top:2px}
+  .who.me{background:#9cc4e4}
+  .who.narr{background:#bdb6c6}
+  .tx{flex:1;font-size:13.5px;color:#d8d2de;white-space:pre-wrap;word-break:break-word;max-height:96px;overflow:auto}
+  .del{flex:0 0 auto;background:none;border:none;color:#a08e9c;font-size:16px;padding:0 4px}
+  .empty{color:var(--dim);font-size:13px;text-align:center;padding:18px 0}
+  .tip{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.7}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:rgba(28,24,32,.95);
+    border:1px solid var(--line);padding:9px 16px;border-radius:999px;font-size:13px;opacity:0;transition:.2s;pointer-events:none}
+  .toast.on{opacity:1}
+  .cfg{display:flex;gap:8px;align-items:center;margin-top:8px}
+  input[type=text]{flex:1;background:rgba(0,0,0,.25);border:1px solid var(--line);color:var(--tx);
+    border-radius:10px;padding:9px 10px;font-size:13.5px;min-width:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>TXT 整理器</h1>
+  <div class="sub">粘正文 → 点名字 → 导出 TXT → 丢进阅读器</div>
+</header>
+
+<main>
+  <div class="card">
+    <textarea id="paste" placeholder="把从 App 复制出来的正文粘到这里（不含名字也没关系）"></textarea>
+    <div class="names" id="names"></div>
+    <div class="row">
+      <button class="btn" id="btnNarr">作为旁白</button>
+      <button class="btn" id="btnClearPaste">清空输入</button>
+    </div>
+    <div class="tip">点名字 = 把上面这段归给他。归完输入框会自动清空，接着粘下一条。</div>
+  </div>
+
+  <h2>已整理（<span id="cnt">0</span> 条）</h2>
+  <div class="card" id="list"><div class="empty">还没有内容</div></div>
+
+  <div class="tip" style="margin:-6px 0 10px">长按某一条可以上下拖动来调整顺序。</div>
+  <div class="row">
+    <button class="btn primary" id="btnCopy">复制全部</button>
+    <button class="btn" id="btnDown">下载 TXT</button>
+    <button class="btn" id="btnReset">清空全部</button>
+  </div>
+
+  <h2>角色名字</h2>
+  <div class="card">
+    <div class="cfg"><input type="text" id="nameInput" placeholder="用逗号分隔，例如：秦彻,黎深,夏以昼"></div>
+    <div class="row"><button class="btn" id="btnSaveNames">保存名字</button></div>
+    <div class="tip">改完名字，上面的按钮会跟着变；已整理的内容不受影响。</div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+  var KEY = 'txtmaker.v1';
+
+  var st = { names:['秦彻','黎深','夏以昼'], me:'我', items:[] };
+  try { var s = JSON.parse(localStorage.getItem(KEY) || '{}');
+    if (s.names && s.names.length) st.names = s.names;
+    if (s.me) st.me = s.me;
+    if (s.items) st.items = s.items;
+  } catch(e){}
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(st)); } catch(e){} }
+
+  function toast(m){ var t=$('toast'); t.textContent=m; t.classList.add('on');
+    clearTimeout(toast._t); toast._t=setTimeout(function(){ t.classList.remove('on'); }, 1600); }
+
+  /* ---- 长按拖动排序 ---- */
+  var drag = null;
+  function itemIndexAt(x, y){
+    var el = document.elementFromPoint(x, y);
+    var row = el && el.closest ? el.closest('.item') : null;
+    if (!row) return -1;
+    return +row.dataset.i;
+  }
+  function moveItem(from, to){
+    if (from === to || from < 0 || to < 0) return;
+    var it = st.items.splice(from, 1)[0];
+    st.items.splice(to, 0, it);
+    save(); renderList();
+    if (drag) drag.idx = to;
+    var row = document.querySelector('.item[data-i="' + to + '"]');
+    if (row) row.classList.add('drag');
+  }
+  document.addEventListener('touchstart', function(e){
+    var row = e.target.closest ? e.target.closest('.item') : null;
+    if (!row || (e.target.closest && e.target.closest('.del'))) return;
+    var t = e.touches[0];
+    drag = { idx: +row.dataset.i, x: t.clientX, y: t.clientY, active:false,
+             timer: setTimeout(function(){
+               if (!drag) return;
+               drag.active = true;
+               var r = document.querySelector('.item[data-i="' + drag.idx + '"]');
+               if (r) r.classList.add('drag');
+               if (navigator.vibrate) navigator.vibrate(12);
+             }, 300) };
+  }, { passive:true });
+
+  document.addEventListener('touchmove', function(e){
+    if (!drag || !drag.active) return;
+    e.preventDefault();
+    var t = e.touches[0];
+    var to = itemIndexAt(t.clientX, t.clientY);
+    if (to >= 0 && to !== drag.idx) moveItem(drag.idx, to);
+  }, { passive:false });
+
+  function endDrag(){ if (!drag) return; clearTimeout(drag.timer); drag = null;
+    var r = document.querySelector('.item.drag'); if (r) r.classList.remove('drag'); }
+  document.addEventListener('touchend', endDrag);
+  document.addEventListener('touchcancel', endDrag);
+
+  /* ---- 渲染 ---- */
+  function renderNames(){
+    var box = $('names'); box.innerHTML = '';
+    st.names.forEach(function(n){
+      var b = document.createElement('button');
+      b.className = 'nb'; b.textContent = n;
+      b.onclick = function(){ addItem(n); };
+      box.appendChild(b);
+    });
+    var m = document.createElement('button');
+    m.className = 'nb me'; m.textContent = st.me;
+    m.onclick = function(){ addItem(st.me); };
+    box.appendChild(m);
+    $('nameInput').value = st.names.join(',');
+  }
+
+  function renderList(){
+    var box = $('list'); box.innerHTML = '';
+    $('cnt').textContent = st.items.length;
+    if (!st.items.length){ box.innerHTML = '<div class="empty">还没有内容</div>'; return; }
+    st.items.forEach(function(it, i){
+      var row = document.createElement('div'); row.className = 'item'; row.dataset.i = i;
+      var who = document.createElement('span');
+      who.className = 'who' + (it.who === st.me ? ' me' : (it.who === '旁白' ? ' narr' : ''));
+      who.textContent = it.who;
+      var tx = document.createElement('div'); tx.className = 'tx'; tx.textContent = it.text;
+      var del = document.createElement('button'); del.className='del'; del.textContent='×';
+      del.onclick = function(){ st.items.splice(i,1); save(); renderList(); };
+      row.appendChild(who); row.appendChild(tx); row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
+  function addItem(who){
+    var raw = $('paste').value.trim();
+    if (!raw){ toast('先把正文粘到上面'); return; }
+    // 段落之间用空行分开，各自成一条
+    var parts = raw.split(/\n[ \t]*\n+/).map(function(x){ return x.trim(); }).filter(Boolean);
+    parts.forEach(function(p){
+      st.items.push({ who: who, text: p });
+    });
+    $('paste').value = '';
+    save(); renderList();
+    toast('已加入 ' + parts.length + ' 条 · ' + who);
+  }
+
+  function buildText(){
+    return st.items.map(function(it){
+      if (it.who === '旁白') return it.text;
+      var name = it.who === st.me ? '用户' : it.who;
+      return '[' + name + ']\n' + it.text;
+    }).join('\n\n');
+  }
+
+  $('btnNarr').onclick = function(){ addItem('旁白'); };
+  $('btnClearPaste').onclick = function(){ $('paste').value = ''; };
+
+  $('btnCopy').onclick = function(){
+    if (!st.items.length){ toast('还没有内容'); return; }
+    var t = buildText();
+    var ok = function(){ toast('已复制 ' + st.items.length + ' 条'); };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(ok, function(){ fallbackCopy(t, ok); });
+    } else fallbackCopy(t, ok);
+  };
+  function fallbackCopy(t, cb){
+    var ta = document.createElement('textarea'); ta.value = t;
+    ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); cb(); } catch(e){ toast('复制失败，请长按选择'); }
+    ta.remove();
+  }
+
+  $('btnDown').onclick = function(){
+    if (!st.items.length){ toast('还没有内容'); return; }
+    var blob = new Blob([buildText()], { type:'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '记录_' + new Date().toISOString().slice(0,10) + '.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
+    toast('已下载到「下载」文件夹');
+  };
+
+  $('btnReset').onclick = function(){
+    if (!st.items.length) return;
+    if (!confirm('清空已整理的 ' + st.items.length + ' 条？不能撤销。')) return;
+    st.items = []; save(); renderList();
+  };
+
+  $('btnSaveNames').onclick = function(){
+    var v = $('nameInput').value.trim();
+    if (!v){ toast('至少留一个名字'); return; }
+    st.names = v.split(/[,，、\s]+/).filter(Boolean);
+    save(); renderNames(); toast('名字已保存');
+  };
+
+  renderNames(); renderList();
+})();
+</script>
+</body>
+</html>
